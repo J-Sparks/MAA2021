@@ -1,0 +1,479 @@
+---
+title: "MAA_2022"
+author: "Jay Kim"
+date: "1/20/2022"
+output: 
+  html_document:
+   toc: true
+   toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r datashaping, include=FALSE}
+library(readr)
+library(tidyverse)
+CSE_ALL_ENR_up2020 <- read_csv("G:/Shared drives/HMCSE-PAM Lab/Jay's Space/DATA/CSE_ALL_ENR_up2020.csv")
+FTIC_IDs <- CSE_ALL_ENR_up2020 %>%  filter(COHORT_YEAR>= 20172018) %>% select("UWFID"=UNIV_ROW_ID)
+# Hmisc::describe(CSE_ALL_ENR_up2020) 
+# colnames(CSE_ALL_ENR_up2020)
+# colSums(is.na(CSE_ALL_ENR_up2020))
+# addmargins(table(CSE_ALL_ENR_up2020$COHORT_YEAR, CSE_ALL_ENR_up2020$APR))
+# high school code
+ 
+applicants_2017to2021_COM_HSGPA2021V1 <- read_csv("G:/Shared drives/HMCSE-PAM Lab/Jay's Space/_DataShaping/applicants_2017to2021_COM_HSGPA2021V1.csv")
+
+FL_HS_CEEB <- applicants_2017to2021_COM_HSGPA2021V1 %>% select("hs_ceeb"=HS_CEEB,"HIGH_SCHOOL_NAME"=HS_NAME) %>% unique()
+write.csv(FL_HS_CEEB, "FL_HS_CEEB.csv", row.names = F)
+
+mydata.one <- merge(CSE_ALL_ENR_up2020, FL_HS_CEEB, by="HIGH_SCHOOL_NAME", all.x = T) 
+ 
+#school grades
+library(readxl)
+SchoolGrades21 <- read_excel("G:/Shared drives/HMCSE-PAM Lab/Jay's Space/2022 Active Projects/01/MAA2022/SchoolGrades21.xlsx", 
+    sheet = "SG")
+# colnames(SchoolGrades21)
+SchoolGrades21 <- janitor::clean_names(SchoolGrades21) %>% mutate(high_school = tolower(school_name)) %>% 
+    select(high_school,total_points_earned )
+ 
+SchoolGrades21_CEEB<- read_excel("G:/Shared drives/HMCSE-PAM Lab/Jay's Space/2022 Active Projects/01/MAA2022/SchoolGrades21.xlsx", 
+    sheet = "CEEB") 
+SchoolGrades21_CEEB <- janitor::clean_names(SchoolGrades21_CEEB) %>% 
+    mutate(high_school= tolower(high_school))
+
+ 
+HS_CEEB_POINT <- merge(SchoolGrades21, SchoolGrades21_CEEB, by="high_school", all.y = T)  #1715
+ 
+FL_HS_CEEB_re <- merge(FL_HS_CEEB, HS_CEEB_POINT, by="hs_ceeb" )
+ 
+CSE_ALL <- merge(CSE_ALL_ENR_up2020, FL_HS_CEEB_re, by="HIGH_SCHOOL_NAME", all.x = T) 
+
+CSE_ALL_MAA2022 <- CSE_ALL %>% 
+    select(1,19:81)  
+#HSGPA mean
+mean(CSE_ALL_MAA2022$GPA_HIGHSCHOOL, na.rm=T) #3.826968
+fivenum(CSE_ALL_MAA2022$GPA_HIGHSCHOOL)  #0.00 3.45 3.86 4.23 5.04
+CRSCSEData <- read_csv("G:/Shared drives/HMCSE-PAM Lab/DATA 202001/CRSCSEData.csv") %>% 
+      mutate(Summer = substr(DEMO_TIME_FRAME, 5,6)) %>% filter(Summer == "05" & DEMO_TIME_FRAME >= 201508) %>% 
+    group_by(UNIV_ROW_ID) %>% filter(DEMO_TIME_FRAME == max(DEMO_TIME_FRAME)) %>% 
+    filter(!duplicated(UNIV_ROW_ID)) %>% select(1, Summer)
+
+```
+
+
+```{r include=FALSE}
+
+app_2017_to_2022_cal_tier_allV0 <- read_csv("G:/Shared drives/HMCSE-PAM Lab/Jay's Space/2021 Active Projects/08/ACCEPTANCE RATE/app_2017_to_2022_cal_tier_allV0.csv" )
+app_test_score <- app_2017_to_2022_cal_tier_allV0 %>% select(UWFID, BEST_TEST_SCORE)
+
+addmargins(table(app_2017_to_2022_cal_tier_allV0$APP_YEAR))
+addmargins(table(CSE_ALL_ENR_up2020$COHORT_YEAR))
+
+# demographic factors for ftic 2017 to 2020
+FTIC_test1 <- merge(FTIC_IDs, app_2017_to_2022_cal_tier_allV0, by="UWFID", all.x = T) %>% 
+    mutate(TRANSFER_HOURS_EARNED = ifelse(is.na(TRANSFER_HOURS_EARNED), 0, TRANSFER_HOURS_EARNED)) %>% 
+    select(UWFID, ADMIT_TYPE,"PROGRAM"=PROGRAM_DESC.x,BEST_HSGPA,BEST_TEST_SCORE,TRANSFER_HOURS_EARNED,  ST,  RACE, GENDER, CNTY) %>% 
+    na.omit() #3919
+colSums(is.na(FTIC_test1))
+
+# grades and gpa
+
+
+
+
+
+```
+
+
+
+
+
+## Data Description
+
+```{r eval=FALSE, include=FALSE}
+CSE_ALL_MAA2022_df <- merge(CSE_ALL_MAA2022, CRSCSEData, by="UNIV_ROW_ID", all.x = T) %>%
+    mutate(is.Summer = ifelse(is.na(Summer), "No", "Yes")) %>% 
+    mutate(GPA_HIGHSCHOOL = ifelse(GPA_HIGHSCHOOL < 2.00, NA, GPA_HIGHSCHOOL)) %>% 
+    mutate(HSGPA_ind = ifelse(GPA_HIGHSCHOOL >= 3.80 , "Above3.80", "Below3.80")) %>% 
+    filter(!is.na(APR))
+ 
+addmargins(table(CSE_ALL_MAA2022_df$APR, AVEHSGPA=CSE_ALL_MAA2022_df$HSGPA_ind))
+hist(CSE_ALL_MAA2022_df$GPA_HIGHSCHOOL)
+write.csv(CSE_ALL_MAA2022_df, "CSE_ALL_MAA2022_DF_V0.csv", row.names = F)
+GPAY1_MAA2022_DF_V0 <- read_csv("G:/Shared drives/HMCSE-PAM Lab/Jay's Space/2022 Active Projects/01/MAA2022/CSE_ALL_MAA2022_DF_V0.csv") %>% 
+    select(7:63,65:67)
+# colnames(GPAY1_MAA2022_DF_V0)
+GPAY1_MAA2022_DF_V1 <-  GPAY1_MAA2022_DF_V0 %>% select(1,3,10,11,12,13,15,21,22,28,29,31:40,43,46,48,50,51,53,57,59,60,APR)
+colnames(GPAY1_MAA2022_DF_V1)
+GPAY1_MAA2022_DF_V2 <- GPAY1_MAA2022_DF_V1 %>% mutate(ACT_SAT = pmax(ACT_PROPORTION, SAT_PROPORTION)) %>%
+    relocate(ACT_SAT, .after = GPA_HIGHSCHOOL) %>% 
+    select(-ACT_PROPORTION, -SAT_PROPORTION,  -PSE) %>% 
+    mutate(is.Engineering = ifelse(str_detect( ENTRY_PROGRAM, "...Engineering"), "Y","N")) %>% 
+     mutate(is.Engineering = ifelse(str_detect( ENTRY_PROGRAM, "Engineering..."), "Y",is.Engineering)) %>% 
+    relocate(is.Engineering, .after =ENTRY_PROGRAM ) %>% select(-ENTRY_PROGRAM)
+colSums(is.na(GPAY1_MAA2022_DF_V2))
+write.csv(GPAY1_MAA2022_DF_V2, "GPAY1_MAA2022_DF_V2.csv", row.names = F)
+```
+
+```{r eval=FALSE, include=FALSE}
+library(readr)
+GPAY1_MAA2022_DF_V2 <- read_csv("G:/Shared drives/HMCSE-PAM Lab/Jay's Space/2022 Active Projects/01/MAA2022/GPAY1_MAA2022_DF_V2.csv") #2529
+# Hmisc::describe(GPAY1_MAA2022_DF_V2)
+hist(GPAY1_MAA2022_DF_V2$total_points_earned)
+mean(GPAY1_MAA2022_DF_V2$GPA_HIGHSCHOOL,na.rm = T) #3.783154
+
+HSGPA_scatter <- GPAY1_MAA2022_DF_V2 %>% filter(!is.na(GPA_HIGHSCHOOL)) %>% #filter(HOURS_BROUGHT_TO_UNIVERSITY == 0) %>% 
+    mutate(Fall1GPA = ifelse(FIRST_FALL_GPA < 2.77, "Below2.77", "Above2.77")) %>%  
+    #filter(GPA_HIGHSCHOOL < 3.40) %>% 
+    filter(FIRST_FALL_GPA < 3.00) %>% 
+    filter(!(FIRST_FALL_GPA == GPA_ENTERING_SECOND_FALL)) %>% filter(FIRST_FALL_GPA != 0) %>% filter(GPA_ENTERING_SECOND_FALL != 0) %>% 
+    mutate(log1stTermGPA =log(FIRST_FALL_GPA)) %>♠% mutate(log1stYearGPA =log(GPA_ENTERING_SECOND_FALL))   
+    
+HSP <- HSGPA_scatter %>% ggplot(aes( x = FIRST_FALL_GPA , y = log1stYearGPA , color =  GPA_HIGHSCHOOL)) +
+    geom_point() + stat_smooth( method =  "lm", se= TRUE)   +
+    labs(title="Semi-log:First Fall GPA vs First Year GPA") + xlab("First Fall GPA") +ylab("First Year GPA")
+
+HSPlog <- HSGPA_scatter %>% ggplot(aes( x = log1stTermGPA , y = log1stYearGPA , color =  GPA_HIGHSCHOOL)) +
+    geom_point() + stat_smooth( method =  "lm", se= TRUE)   +
+    labs(title="Log-log:First Fall GPA vs First Year GPA") + xlab("First Fall GPA") +ylab("First Year GPA")
+HSP
+HSPlog
+shapiro.test(HSGPA_scatter$GPA_ENTERING_SECOND_FALL)
+
+summary(slm1 <- lm(log1stYearGPA ~ FIRST_FALL_GPA, data=HSGPA_scatter  ))
+summary(slm2 <- lm(log1stYearGPA ~ log1stTermGPA, data=HSGPA_scatter  ))
+
+
+
+```
+
+### Better Data with each term GPA
+
+```{r}
+lastvalue = function(x) tail(x[!is.na(x),1])
+STEM=c("STEM")
+heslth=c("Health", "Gap Analysis")
+#test_score <- applicants_2017to2021_COM_HSGPA2021V1 %>% select(UWFID, BESTTES)
+dffGPA_varis <- c(#"DIFFGPA",    
+                  "FallWHours","SpringWHours", "SwitchedMajor","Cohort",  "BEST_TEST","Prior_Hours","AREA_OF_STRATEGIC_EMPHASIS",
+                  "AGE_AT_ENTRY",
+                  "GENDER","COUNTY_GROUP","GPA_HIGHSCHOOL","FIRST_FALL_PELL","FIRST_FALL_BRIGHT_FUTURES","FIRST_GEN_IND","AGE_AT_ENTRY")
+library(readr)
+GPA_UWF_MAAV_majorAPR <- read_csv("G:/Shared drives/HMCSE-PAM Lab/Jay's Space/_DataShaping/GPA_UWF_MAAV_majorAPRONLY.csv")
+GPA_UWF_ADD_DIFFGPAV0 <- read_csv("G:/Shared drives/HMCSE-PAM Lab/Jay's Space/_DataShaping/GPA_UWF_ADD_DIFFGPAV0.csv") # updated
+GPA_UWF_ADD_DIFFGPAV1 <- read_csv("G:/Shared drives/HMCSE-PAM Lab/Jay's Space/_DataShaping/GPA_UWF_ADD_DIFFGPAV1.csv") #updated fall hours
+
+
+GPA.DATA.NEW <- GPA_UWF_ADD_DIFFGPAV1 %>% 
+    filter(Fall1GPA == "Below2.77")
+
+qplot(GPA.DATA.NEW$DIFFGPA, main = "GPA Improvement" ,fill="DIFFGPA" ) 
+ggplot(GPA.DATA.NEW, aes(x=DIFFGPA)) + geom_boxplot( color="red")
+x <- data.frame( GPA.DATA.NEW$ArangeSpring, GPA.DATA.NEW$BrangeSpring)
+library(reshape2)
+library(tidyverse)
+data<- melt(x)
+ggplot(data,aes(x=value, fill=variable)) + geom_density(alpha=0.25)
+ggplot(data,aes(x=value, fill=variable)) + geom_histogram(alpha=0.25)
+ggplot(data,aes(x=variable, y=value, fill=variable)) + geom_boxplot()
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# meanGPA1 <- GPA_UWF_ADD_DIFFGPAV0 %>% filter(Cohort <= 2018) %>%
+#    summarise(meanGPA=mean(UWF1, na.rm=T))
+library(stringr)
+GPA_UWF_DF2 <- GPA_UWF_ADD_DIFFGPAV1 %>% 
+     mutate(BEST_TEST = ifelse(BEST_TEST == 0, 0.3203125, BEST_TEST)) %>%
+     mutate(is.EngineeringMajor = ifelse(str_detect(Fall1Major, "...Engineering"), "Y","N")) %>% 
+     mutate(is.EngineeringMajor = ifelse(str_detect(Fall1Major, "Engineering..."), "Y",is.EngineeringMajor)) %>% 
+    mutate(GPA_HIGHSCHOOL = ifelse(GPA_HIGHSCHOOL <= 3.44 , ">3.44",
+                                   ifelse(GPA_HIGHSCHOOL < 3.88, "(3.44,3.88)", "3.88+"))) %>%
+    mutate(HS_GPA = ifelse(GPA_HIGHSCHOOL >= 3.88 , ">=3.88", "<3.88")) %>% 
+                                   #ifelse(GPA_HIGHSCHOOL < 3.88, "(3.44,3.88)", "3.88+"))) %>%
+   # mutate(GPA_HIGHSCHOOL = factor(GPA_HIGHSCHOOL, levels=c( "3.44-", "(3.44,3.88)","3.88+"))) %>%
+    mutate( PassedSummer = ifelse((SummerTaken == "No" & is.na(PassedSummer)), "NotAttempt","Attempt")) %>% mutate(PassedSummer =factor(PassedSummer)) %>%
+    mutate(BEST_TEST = ifelse(BEST_TEST < 0.50 , "Below50%", "Above50%")) %>%
+    mutate(Prior_Hours = ifelse(Prior_Hours <= 0.00,  "None",
+                                ifelse(Prior_Hours < 6, "[1,6)","6+"))) %>%
+    mutate(Prior_Hours = factor(Prior_Hours, levels=c( "None", "[1,6)","6+"))) %>%
+    mutate(Prior_Hours = relevel(Prior_Hours, ref="6+")) %>%
+     mutate(COUNTY_GROUP = ifelse(COUNTY_GROUP == "Tri-County", "Tri-County", "NonTri-County")) %>%
+    # mutate(AREA_OF_STRATEGIC_EMPHASIS = ifelse(AREA_OF_STRATEGIC_EMPHASIS == "STEM", "STEM",
+    #                                     ifelse(AREA_OF_STRATEGIC_EMPHASIS =="Not Available",  "Not Available", "NonSTEM"))) %>%
+     mutate(STATE = ifelse( STATE == "Florida", "FL", "nonFL")) %>%
+    mutate(NATION_GROUP == ifelse(NATION_GROUP == "USA", "USA", "NonUSA")) %>%
+    filter(UWF1 < 2.77) %>% filter(!is.na(ArangeSpring)) %>%
+    filter(!is.na(GPA_HIGHSCHOOL)) %>%
+    filter(!is.na(UWF1)) %>%
+    mutate(StayedSpring=ifelse(is.na(UWF2), "No","Yes")) %>%
+    filter(StayedSpring != "No") # removed spring stop outs
+ 
+MEANGPA <- GPA_UWF_DF2 %>% 
+    group_by(PassedSummer) %>% dplyr::summarise(meanGPAY1 = mean(FinalY1GPA), Count=n())
+MEANGPA
+
+GPA.DATA.DIFFGPA <- GPA_UWF_DF2  %>% filter(Cohort <= 2020) %>%
+    filter(!(abs(DIFFGPA - median(DIFFGPA)) > 3*sd(DIFFGPA))) %>% 
+    mutate(SpringMathName = ifelse(is.na(MathnameSpring), "NotAttempt", MathnameSpring)) %>% 
+    #mutate(SpringMathName = relevel(SpringMathName, ref = "NotAttempt")) %>% 
+    #mutate(GPA_HIGHSCHOOL = factor(GPA_HIGHSCHOOL, levels = c("3.44-","(3.44,3.88)","3.88+"))) %>% 
+    #mutate(GPA_HIGHSCHOOL = relevel(GPA_HIGHSCHOOL, ref="3.88+")) %>%
+    mutate(AttemptMoreHrs=ifelse((Term2-Term1 > 0), "Yes","No")) %>% 
+    select(dffGPA_varis,"Fall1AttemptHrs"=Term1, AttemptMoreHrs,"SummerTerm"=PassedSummer,  SpringMathName,is.EngineeringMajor,
+          ArangeSpring, BrangeSpring,CrangeSpring,DFUSpring, HS_GPA, -GPA_HIGHSCHOOL, FinalY1GPA) %>% 
+    replace(is.na(.), 0) %>%  #2189/2176/2491
+    mutate(ArangeSpring = ifelse(ArangeSpring > 6, "Earned6+Hrs","Earned<6Hrs")) %>% 
+    mutate(BrangeSpring = ifelse(BrangeSpring > 6, "Earned6+Hrs","Earned<6Hrs")) %>% 
+    mutate(CrangeSpring = ifelse(CrangeSpring > 6, "Earned6+Hrs","Earned<6Hrs"))  
+     # mutate(CrangeSpring = cut(ArangeSpring, breaks =c( -1,0, 2.99, 5.99,8.99, 30), labels=c("None",  "CRD3-","CRD[3,6)", "CRD[6,9)", "CRD9+"))) %>% 
+    # mutate(BrangeSpring = cut(BrangeSpring, breaks =c( -1,0, 2.99, 5.99,8.99, 30), labels=c( "None","CRD3-","CRD[3,6)", "CRD[6,9)", "CRD9+"))) %>% 
+    # mutate(CrangeSpring = cut(CrangeSpring, breaks =c( -1, 0,2.99, 5.99,8.99, 30), labels=c( "None","CRD3-","CRD[3,6)", "CRD[6,9)", "CRD9+"))) %>% 
+    # mutate(DFUSpring = cut(DFUSpring, breaks =c( -1,0, 2.99, 5.99,8.99, 30), labels=c("None", "CRD3-","CRD[3,6)", "CRD[6,9)", "CRD9+")))  
+    
+#write.csv(GPA.DATA.DIFFGPA, "GPA.DATA.DIFFGPA.csv",row.names = F)
+#addmargins(table(GPA.DATA.DIFFGPA$AttemptMoreHrs))
+library(readr)
+GPA.DATA.DIFFGPA <- read_csv( "GPA.DATA.DIFFGPA.csv")
+
+Hmisc::describe(GPA.DATA.DIFFGPA)
+```
+
+
+
+```{r  plot}
+
+mean(GPA.DATA.DIFFGPA$FinalY1GPA, na.rm=T) #0.1373989
+GPA.DATA.DIFFGPAA <- GPA.DATA.DIFFGPA %>% 
+    mutate(Prior_Hours = factor(Prior_Hours, levels = c("None", "[1,6)","6+")))  
+library(ggpubr)
+ 
+anovabox <- ggboxplot(GPA.DATA.DIFFGPA, x = "HS_GPA", y = "FinalY1GPA", color = "HS_GPA", 
+          add = "jitter", legend = "none") +
+  rotate_x_text(angle = 45)+
+  geom_hline(yintercept = mean(GPA.DATA.DIFFGPA$FinalY1GPA), linetype = 2.069311)+ # Add horizontal line at base mean
+  stat_compare_means(method = "anova", label.y = 3.88) +        # Add global annova p-value
+  stat_compare_means(label = "p.signif", method = "t.test",
+                     ref.group = ".all.")  + xlab("High sChool GPA") + ylab("1st Year GPA")
+anovabox
+```
+
+
+```{r  linear regression and model}
+### linear equation
+library(ggpmisc)
+con_p <- GPA_UWF_MAAV_majorAPR %>% filter(GPA_HIGHSCHOOL != 0.00) %>% 
+    filter(UWF1 != 0.00) %>% mutate(logUWF1=log(UWF1)) %>% 
+     filter(!(abs(GPA_HIGHSCHOOL - median(GPA_HIGHSCHOOL)) > 3*sd(GPA_HIGHSCHOOL)))  
+formula <- y ~ x
+mlplot <- ggplot(con_p, aes(x= UWF1, y= UWF2, color = GPA_HIGHSCHOOL)) +
+  geom_point(alpha = 0.3 ) +
+  #facet_wrap(~clarity, scales = "free_y") +
+  geom_smooth(method = "lm", formula = formula, se = F) +
+  stat_poly_eq(aes(label = paste(..eq.label.., ..rr.label.., sep = "~~~")), 
+               label.x.npc = "right", label.y.npc = 0.15,
+               formula = formula, parse = TRUE, size = 5, color="red") +
+    labs(title = "Fall GPA vs. Spring GPA") +xlab("Fall GPA")+ylab("Spring GPA")
+mlplot
+
+
+ 
+```
+
+
+
+
+
+## Methods
+
+-Focus on regression models to predict continuous dependent variable.
+1. Multiple linear regression
+2. Regularized regression models
+    
+**Multiple Linear Regression **
+
+Prefer using a multiple linear regression model since it is more realistic -things often depend on 2, 5, 10 or even more factors.
+
+-Evaluate performance of the model considering R-squared values and Root Mean Squared Error (RMSE)
+-Higher R-squared score and lower RMSE values indicate better model.
+-The R-squared measures how much of the total variability is explained by our model
+-Multiple regressions are always better than simple ones, as with each additional variable you add, the explanatory power may only increase or stay the same
+-adj.R^2 < R^2
+-adj.R^2 is a measure that how well your model fits the data. However, it penalizes the use of variables that are meaningless for the regression.
+-Add insignificant variables lose explanatory power. adj.R^2 basis for comparing models.(same variables and data set)
+-IF adding a new parameter increases R-squared but decreases adj. R-squared, the variable can be omitted since it holds no predictive power.
+-F-statistics: used for testing the overall significant of the model
+-F-test(p-value): Ho-all betas are zero
+-How to asses
+-Assumptions: linearity (linear regression), there are more sophisticated models, No endogeneity(situations in which an explanatory variable is correlated with the error term), normality and homoscedastictiy (errors are normaly distributed), no autocorrelation, no mulitcollinearity
+    
+**Ridge Regression**
+
+Extension of linear regression where the loss function is modified to minimize the complexity of the model. 
+This modification is done by adding a penalty parameter that is equivalent to the square of the magnitude of the coefficients.
+
+ 
+
+```{r pacages, message=FALSE, warning=FALSE, include=FALSE}
+library(plyr)
+library(readr)
+library(dplyr)
+library(caret)
+library(ggplot2)
+library(repr)
+library(corrgram)
+library(corrplot)
+library(mlbench)
+library(psych)
+library(readr)
+# GPAY1_MAA2022_DF_V2 <- GPAY1_MAA2022_DF_V2 %>% 
+#      filter(!is.na(GPA_ENTERING_SECOND_FALL)) %>% 
+#     filter(!is.na(GPA_HIGHSCHOOL)) %>% filter(!is.na(total_points_earned)) 
+# #%>%  #filter(AveGPA2.77 =="No") 
+# #colSums(is.na(GPAY1_MAA2022_DF_V2))
+colnames(GPA_UWF_ADD_DIFFGPAV1)
+```
+
+### Data Partitioning/Scaling/Correlation Matrix
+
+```{r}
+# num.cols <- GPA.DATA %>% 
+#     select(where(is.numeric)) %>% 
+#     select(-FinalY1GPA,-COHORT_YEAR )# collinearity
+
+num.cols.raw <- GPA_UWF_ADD_DIFFGPAV1 %>% select(6,7,8,10:15,22,24,26,32,42,48,51,53:57) %>% replace(is.na(.),0) %>% 
+    select(where(is.numeric)) 
+# colSums(is.na(num.cols))
+# GPA.DATA[,num.col.names] <- predict(prep_num.cols, GPA.DATA[,num.col.names])
+# summary(GPAY1_MAA2022_DF_V2)
+
+#num.cols.cor <- num.cols %>% na.omit()
+nu.raw.cor <- num.cols.raw  %>%  na.omit()
+# colSums(is.na(num.cols.cor))
+#num.cols.corr <- cor(num.cols.cor)
+num.cols.corr.raw <- cor(nu.raw.cor)
+
+#num.cols.corr
+#corrplot(num.cols.corr, method = "pie" ) # too small
+#psych::pairs.panels(num.cols.corr, cex.cor=2, main="Histograms and Correlations for a Data Matrix")
+psych::pairs.panels(num.cols.corr.raw, cex.cor=4, main="Histograms and Correlations for a Data Matrix")
+
+#qplot(GPA.DATA$FinalY1GPA, main = "1st-Year GPA for At-risk FTIC")
+
+```
+### Data Partition
+
+```{r}
+# colSums(is.na(GPAY1_MAA2022_DF_V2)) 
+set.seed(123)
+id <- sample(2, nrow(GPA.DATA.DIFFGPA), replace = T, prob = c(0.7,0.3))
+train_t <- GPA.DATA.DIFFGPA[id ==1, ]
+test_t <- GPA.DATA.DIFFGPA[id ==2, ]
+
+# Custom control parameters
+custom1 <- trainControl(method = "repeatedcv",number = 10, repeats = 3, verboseIter = T)
+
+
+```
+
+
+
+
+
+### Regression
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#colSums(is.na(GPAY1_MAA2022_DF_V2))
+lm.1 <- train(FinalY1GPA ~ ., data = train_t, method ="lm", trControl = custom1)
+lm.1$results #RMSE 0.5282094 /0.7067871
+ 
+summary(lm.1)
+summary(m1 <- lm( FinalY1GPA ~., data= train_t))
+car::vif(m1)
+summary(m2 <- step(m1, direction = "backward"))
+sqrt(mean(m2$residuals^2))  #RMSE0.5191501 0.7238,
+
+#Ridge
+ridge.1 <- train(FinalY1GPA ~ ., data = train_t, method ="glmnet", 
+                 tuneGrid = expand.grid(alpha = 0, lambda = seq(0.0001, 0.5,length = 5)), # increase lambda increase fananltyhrink 
+                 trControl = custom1) # best  lambda = 1e-04 0.0004
+
+ridge.1
+# Lasso
+set.seed(213)
+lasso.1 <- train(FinalY1GPA ~ ., data = train_t, method ="glmnet", 
+                 tuneGrid = expand.grid(alpha = 1, lambda = seq(0.0001, 0.5,length = 5)), # increase lambda increase fananltyhrink 
+                 trControl = custom1)
+
+#Elastic Net
+elasticnet.1 <- train(FinalY1GPA ~ ., data = train_t, method ="glmnet", 
+                 tuneGrid = expand.grid(alpha = seq(0, 1, length = 5), lambda = seq(0.0001, 0.5,length = 10)),  trControl = custom1)
+#alpha = 0.111, lambda = 1e-04 
+```
+
+### Plots
+
+```{r}
+library(vip)
+p1 <- vip(m1, num_features = length(coef(m1)), geom = "point", horizontal = FALSE)
+p2 <- vip(m1, num_features = length(coef(m1)), geom = "point", horizontal = TRUE, mapping = aes_string(color="Sign"))
+grid.arrange(p1, p2, nrow=1)
+factors <-  m1$coefficients   %>%  data.frame() 
+factors$names <-  rownames(factors)
+factors$Coef <-  round(factors$. ,8)
+factros <- factors %>% arrange(Coef) %>% filter(Coef>0)
+
+p_backward <- ggplot(factors[-1,], aes(y =  factor(names), x = Coef , colour=factor(sign(Coef)), group=names, label = names)) + 
+    geom_point(size=2.5) + geom_text(size=2.5, vjust = 0, hjust = 0) + theme(legend.position = "none")
+p_backward  
+plot(lm.1$finalModel)
+
+plot(ridge.1) #higher lambda increase errors
+plot(ridge.1$finalModel, xvar= "lambda") #relax lambda coefficient smaller
+plot(ridge.1$finalModel, xvar ="dev", label = F)
+plot(varImp(ridge.1, scale = F), main="Variable Importance using Ridge Regression")
+plot(lasso.1)
+plot(lasso.1$finalModel, xvar= "lambda") #relax lambda coefficient smaller
+plot(lasso.1$finalModel, xvar ="dev", label = F) # show overfitting at the end
+plot(varImp(lasso.1, scale = F),main="Variable Importance using Lasso Regression")
+plot(elasticnet.1)
+plot(elasticnet.1$finalModel, xvar= "lambda") #relax lambda coefficient smaller
+plot(elasticnet.1$finalModel, xvar ="dev", label = F) # show overfitting at the end
+plot(varImp(elasticnet.1, scale = F), main="Variable Importance using Elastic Net Regression")
+p2
+```
+
+
+
+
+
+```{r}
+
+#comparison
+all_models <- list(LinerModel = lm.1, RidgeModel = ridge.1, LassoModel = lasso.1, ElasticNetModel =elasticnet.1)
+res <- resamples(all_models)
+summary(res)
+bwplot(res)
+xyplot(res, metric = "RMSE")
+
+#best model
+# lasso.1$bestTune
+# lasso.1$bestTune
+best.M <- lasso.1$finalModel
+coef(best.M, s = lasso.1$bestTune$lambda)
+saveRDS(lasso.1,"FinalModel.rds")
+final.model <- readRDS("FinalModel.rds")
+
+#prediction
+ (summary(res))
+Pred.train <- predict(final.model, train_t)
+sqrt(mean((train_t$FinalY1GPA - Pred.train)^2)) # 0.415200
+Pred.test <- predict(final.model, test_t)
+sqrt(mean((test_t$FinalY1GPA - Pred.test)^2)) # 0.4003097
+
+```
+
+
+
+ 
